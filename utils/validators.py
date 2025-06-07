@@ -87,8 +87,7 @@ def validate_file_exists(file_path: Union[str, Path],
     result = validator.validate(file_path, {'expected_type': expected_type})
     return result.is_valid, result.errors
 
-def validate_project_structure(project_path: Union[str, Path], 
-                             expected_stage: str = 'unknown') -> Tuple[bool, List[str], Dict[str, Any]]:
+def validate_project_structure(project_path: Union[str, Path], expected_stage: str = 'unknown') -> Tuple[bool, List[str], Dict[str, Any]]:
     """Validación rápida de estructura de proyecto"""
     validator = ProjectValidator()
     result = validator.validate(project_path, {'expected_stage': expected_stage})
@@ -186,7 +185,7 @@ class VideoProcessingRequestValidator(IValidator):
         """Valida preferencia de voz"""
         valid_preferences = ['Male', 'Female', 'male', 'female']
         # También aceptar IDs específicos de voces (formato: idioma-región-nombre)
-        voice_id_pattern = r'^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural summary
+        voice_id_pattern = r'^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$'
 
 class IValidator(ABC):
     """Interface base para todos los validadores"""
