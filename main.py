@@ -27,11 +27,7 @@ from utils.config_manager import get_default_config_manager, validate_environmen
 from utils.validators import quick_validate_for_translation
 from utils.progress_tracker import create_pipeline_tracker
 
-from video_processing.factories import (
-    CompleteVideoTranslationFactory,
-    create_video_translator,
-    create_complete_video_processor
-)
+from video_processing.factories import CompleteVideoTranslationFactory, create_video_translator, create_complete_video_processor
 
 
 class VideoTranslatorApp:

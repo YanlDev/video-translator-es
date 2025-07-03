@@ -35,4 +35,4 @@ from .models import (
     TranscriptionResult,
     TranscriptionSegment,
     LanguageInfo,
-    SubtitleGenerationResult,
+    SubtitleGenerationResult,)

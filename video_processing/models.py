@@ -364,7 +364,10 @@ class TranslationSessionInfo:
             return 0.0
         return (self.word_count / duration) * 60
 
-# MODELOS PARA TEXT-TO-SPEECH (TTS) - AGREGAR A models.py
+# REEMPLAZA TODA LA SECCIÓN DE MODELOS TTS EN models.py
+# (Desde la línea ~400 hasta el final del archivo)
+
+# MODELOS PARA TEXT-TO-SPEECH (TTS) - CORREGIDOS
 
 @dataclass
 class SpanishVoice:
@@ -420,7 +423,6 @@ class SpanishTTSResult:
         return {
             'duration': f"{self.duration_seconds:.1f}s",
             'size': f"{self.file_size_mb:.1f}MB",
-            'sample_rate': f"{self.actual_sample_rate}Hz",
             'voice': str(self.voice_used) if self.voice_used else "Unknown",
             'processing_time': f"{self.processing_time:.1f}s"
         }
@@ -471,7 +473,7 @@ class TTSConfiguration:
     """Configuración del sistema TTS"""
     preferred_provider: str = "edge"    # Proveedor preferido
     fallback_providers: List[str] = None  # Proveedores de fallback
-    default_voice_filters: VoiceFilter = None  # Filtros por defecto
+    default_voice_filters: SpanishVoiceFilter = None  # Filtros por defecto
     chunk_size: int = 1000             # Tamaño de chunk para textos largos
     max_text_length: int = 10000       # Máximo texto por request
     default_format: str = "wav"        # Formato por defecto
@@ -482,17 +484,17 @@ class TTSConfiguration:
         if self.fallback_providers is None:
             self.fallback_providers = ["google", "azure", "edge"]
         if self.default_voice_filters is None:
-            self.default_voice_filters = VoiceFilter(
-                language="es",
-                neural_only=True,
-                min_quality_score=3
+            self.default_voice_filters = SpanishVoiceFilter(
+                locale=None,
+                gender=None,
+                neural_only=True
             )
 
 @dataclass
 class TTSBatch:
     """Lote de generaciones TTS para procesamiento masivo"""
     batch_id: str
-    requests: List[TTSRequest]
+    requests: List[SpanishTTSRequest]  # CORREGIDO: era TTSRequest
     created_at: datetime
     priority: int = 1  # 1=alta, 2=media, 3=baja
     
@@ -515,7 +517,7 @@ class TTSSessionInfo:
     session_id: str
     project_name: str
     original_text: str
-    voice_used: Voice
+    voice_used: SpanishVoice  # CORREGIDO: era Voice
     total_duration_seconds: float
     character_count: int
     word_count: int
@@ -594,3 +596,195 @@ class SSMLConfig:
         
         ssml_text += '</speak>'
         return ssml_text
+    
+
+# AGREGA ESTOS MODELOS AL FINAL DE models.py 
+# (después de la sección TTS que acabamos de corregir)
+
+# MODELOS PARA COMPOSICIÓN DE VIDEO
+
+@dataclass
+class VideoAsset:
+    """Información de un asset de video"""
+    asset_type: str           # "original_video", "spanish_audio", "background_music"
+    file_path: str           # Ruta del archivo
+    duration: float          # Duración en segundos
+    format: str              # Formato del archivo (mp4, wav, etc.)
+    has_audio: bool          # Si tiene pista de audio
+    has_video: bool          # Si tiene pista de video
+    resolution: str = ""     # Resolución (ej: "1920x1080")
+    
+    def get_file_size_mb(self) -> float:
+        """Retorna tamaño del archivo en MB"""
+        if os.path.exists(self.file_path):
+            return os.path.getsize(self.file_path) / 1024 / 1024
+        return 0.0
+
+@dataclass
+class AudioTrack:
+    """Información de una pista de audio para composición"""
+    track_id: str            # Identificador único
+    name: str                # Nombre descriptivo
+    file_path: str           # Ruta del archivo de audio
+    track_type: str          # "spanish_voice", "background_music", "original"
+    volume: float = 1.0      # Volumen (0.0 - 1.0)
+    is_primary: bool = False # Si es la pista principal
+    fade_in: float = 0.0     # Fade in en segundos
+    fade_out: float = 0.0    # Fade out en segundos
+    
+    def get_duration(self) -> float:
+        """Obtiene duración del audio"""
+        try:
+            import subprocess
+            cmd = [
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', self.file_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return float(result.stdout.strip())
+        except:
+            return 0.0
+
+@dataclass
+class VideoCompositionRequest:
+    """Solicitud de composición de video"""
+    project_name: str
+    original_video_path: str
+    spanish_audio_path: str
+    output_path: str
+    background_music_path: Optional[str] = None
+    spanish_voice_volume: float = 0.8
+    background_music_volume: float = 0.25
+    output_format: str = "mp4"
+    video_quality: str = "high"  # "low", "medium", "high"
+    
+    def validate(self) -> List[str]:
+        """Valida la solicitud"""
+        errors = []
+        
+        if not os.path.exists(self.original_video_path):
+            errors.append(f"Video original no encontrado: {self.original_video_path}")
+        
+        if not os.path.exists(self.spanish_audio_path):
+            errors.append(f"Audio español no encontrado: {self.spanish_audio_path}")
+        
+        if self.background_music_path and not os.path.exists(self.background_music_path):
+            errors.append(f"Música de fondo no encontrada: {self.background_music_path}")
+        
+        if not 0.0 <= self.spanish_voice_volume <= 1.0:
+            errors.append("Volumen de voz debe estar entre 0.0 y 1.0")
+        
+        if not 0.0 <= self.background_music_volume <= 1.0:
+            errors.append("Volumen de música debe estar entre 0.0 y 1.0")
+        
+        return errors
+
+@dataclass
+class VideoCompositionResult:
+    """Resultado de composición de video"""
+    success: bool
+    final_video_path: Optional[str] = None
+    duration_seconds: float = 0.0
+    file_size_mb: float = 0.0
+    video_resolution: str = ""
+    audio_tracks_count: int = 0
+    video_codec: str = ""
+    audio_codec: str = ""
+    processing_time: float = 0.0
+    error_message: Optional[str] = None
+    
+    def get_composition_info(self) -> Dict[str, Any]:
+        """Retorna información de la composición"""
+        return {
+            'success': self.success,
+            'duration': f"{self.duration_seconds:.1f}s",
+            'size': f"{self.file_size_mb:.1f}MB",
+            'resolution': self.video_resolution,
+            'audio_tracks': self.audio_tracks_count,
+            'processing_time': f"{self.processing_time:.1f}s"
+        }
+
+@dataclass
+class CompositionProgress:
+    """Progreso de composición de video"""
+    stage: str               # "analyzing", "preparing", "composing", "encoding", "finalizing"
+    percentage: float        # 0.0 - 100.0
+    current_operation: str   # Descripción de la operación actual
+    estimated_time_remaining: float = 0.0
+    
+    def get_stage_description(self) -> str:
+        """Descripción legible del stage"""
+        descriptions = {
+            "analyzing": "Analizando archivos de entrada",
+            "preparing": "Preparando assets para composición",
+            "composing": "Componiendo video y audio",
+            "encoding": "Codificando video final",
+            "finalizing": "Finalizando proceso"
+        }
+        return descriptions.get(self.stage, self.stage)
+
+@dataclass
+class CompositionTemplate:
+    """Template para composición de video"""
+    template_id: str
+    name: str
+    description: str
+    voice_volume: float = 0.8
+    music_volume: float = 0.25
+    apply_ducking: bool = True          # Reducir música cuando hay voz
+    add_fade_effects: bool = True       # Agregar efectos de fade
+    normalize_audio: bool = True        # Normalizar niveles de audio
+    video_quality: str = "high"
+    
+    @staticmethod
+    def create_standard_template() -> 'CompositionTemplate':
+        """Crea template estándar"""
+        return CompositionTemplate(
+            template_id="standard",
+            name="Composición Estándar",
+            description="Template balanceado para la mayoría de videos",
+            voice_volume=0.8,
+            music_volume=0.25,
+            apply_ducking=True,
+            add_fade_effects=True,
+            normalize_audio=True
+        )
+    
+    @staticmethod
+    def create_voice_focused_template() -> 'CompositionTemplate':
+        """Crea template enfocado en voz"""
+        return CompositionTemplate(
+            template_id="voice_focused",
+            name="Enfoque en Voz",
+            description="Prioriza claridad de la voz española",
+            voice_volume=0.9,
+            music_volume=0.15,
+            apply_ducking=True,
+            add_fade_effects=True,
+            normalize_audio=True
+        )
+
+@dataclass
+class ProjectCompositionInfo:
+    """Información de composición de un proyecto"""
+    project_id: str
+    project_name: str
+    original_video: VideoAsset
+    spanish_audio: VideoAsset
+    background_music: Optional[VideoAsset] = None
+    subtitles: Optional[VideoAsset] = None
+    template_used: CompositionTemplate = None
+    
+    def is_ready_for_composition(self) -> bool:
+        """Verifica si está listo para composición"""
+        return (self.original_video is not None and 
+                self.spanish_audio is not None and
+                os.path.exists(self.original_video.file_path) and
+                os.path.exists(self.spanish_audio.file_path))
+    
+    def get_estimated_output_size_mb(self) -> float:
+        """Estima tamaño del video final"""
+        # Estimación basada en el video original
+        if self.original_video:
+            return self.original_video.get_file_size_mb() * 1.1  # +10% por nuevo audio
+        return 0.0

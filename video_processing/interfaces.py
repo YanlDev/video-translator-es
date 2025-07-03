@@ -2,7 +2,9 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, List, Dict 
-from .models import VideoInfo, DownloadProgress, DownloadResult, AudioExtractionResult, AudioSeparationResult, AudioProcessingProgress, TranscriptionResult, SubtitleGenerationResult, LanguageInfo, TranslationResult, LanguagePair, TranslatorConfig, TextChunk, TranslationProgress, TranslationCostEstimate, TranslationMetrics, SpanishVoice, SpanishTTSRequest, SpanishTTSResult, TTSProgress, SpanishVoiceFilter
+from typing import Optional, Callable, List, Dict
+from .models import ( VideoInfo, DownloadProgress, DownloadResult, AudioExtractionResult,  AudioSeparationResult, AudioProcessingProgress, TranscriptionResult,  SubtitleGenerationResult, LanguageInfo, TranslationResult, LanguagePair,  TranslatorConfig, TextChunk, TranslationProgress, TranslationCostEstimate,  TranslationMetrics, SpanishVoice, SpanishTTSRequest, SpanishTTSResult,  TTSProgress, SpanishVoiceFilter, VideoAsset, AudioTrack, VideoCompositionRequest, VideoCompositionResult, CompositionProgress, CompositionTemplate, ProjectCompositionInfo
+)
 
 # INTERFACES PARA DESCARGA DE VIDEOS
 class IVideoInfoExtractor(ABC):
@@ -752,4 +754,127 @@ class IAdaptiveSpanishTTS(ABC):
         Returns:
             Siguiente proveedor disponible o None
         """
+        pass
+    
+# AGREGA ESTAS INTERFACES AL FINAL DE interfaces.py
+# (después de las interfaces TTS existentes)
+
+# INTERFACES PARA COMPOSICIÓN DE VIDEO
+
+class IVideoAnalyzer(ABC):
+    """Interface para análisis de archivos de video"""
+    
+    @abstractmethod
+    def analyze_video(self, video_path: str) -> 'VideoAsset':
+        """Analiza archivo de video y retorna sus propiedades"""
+        pass
+    
+    @abstractmethod
+    def get_video_duration(self, video_path: str) -> float:
+        """Obtiene duración del video en segundos"""
+        pass
+    
+    @abstractmethod
+    def get_video_resolution(self, video_path: str) -> str:
+        """Obtiene resolución del video (ej: "1920x1080")"""
+        pass
+    
+    @abstractmethod
+    def has_audio_track(self, video_path: str) -> bool:
+        """Verifica si el video tiene pista de audio"""
+        pass
+
+class IAudioMixer(ABC):
+    """Interface para mezcla de pistas de audio"""
+    
+    @abstractmethod
+    def mix_audio_tracks(self, audio_tracks: List['AudioTrack'], output_path: str,
+                        duration: float,
+                        progress_callback: Optional[Callable[['CompositionProgress'], None]] = None) -> bool:
+        """Mezcla múltiples pistas de audio en una sola"""
+        pass
+    
+    @abstractmethod
+    def apply_ducking(self, voice_track: str, background_track: str, output_path: str,
+                     ducking_threshold: float = -20.0, ducking_ratio: float = 0.3) -> bool:
+        """Aplica ducking (reduce música cuando hay voz)"""
+        pass
+    
+    @abstractmethod
+    def normalize_audio_levels(self, audio_path: str, target_level: float = -16.0) -> bool:
+        """Normaliza niveles de audio a un target específico"""
+        pass
+
+class IVideoComposer(ABC):
+    """Interface principal para composición de video"""
+    
+    @abstractmethod
+    def compose_video(self, request: 'VideoCompositionRequest',
+                     progress_callback: Optional[Callable[['CompositionProgress'], None]] = None) -> 'VideoCompositionResult':
+        """Compone video final combinando todos los elementos"""
+        pass
+    
+    @abstractmethod
+    def validate_composition_request(self, request: 'VideoCompositionRequest') -> List[str]:
+        """Valida que la solicitud de composición sea válida"""
+        pass
+    
+    @abstractmethod
+    def estimate_processing_time(self, request: 'VideoCompositionRequest') -> float:
+        """Estima tiempo de procesamiento en segundos"""
+        pass
+
+class IVideoEncoder(ABC):
+    """Interface para codificación de video"""
+    
+    @abstractmethod
+    def encode_video(self, input_video: str, input_audio: str, output_path: str,
+                    quality: str = "high") -> bool:
+        """Codifica video final con nueva pista de audio"""
+        pass
+    
+    @abstractmethod
+    def get_supported_formats(self) -> List[str]:
+        """Retorna formatos de salida soportados"""
+        pass
+    
+    @abstractmethod
+    def optimize_for_size(self, video_path: str, target_size_mb: float) -> bool:
+        """Optimiza video para tamaño específico"""
+        pass
+
+class IProjectCompositionManager(ABC):
+    """Interface para gestión de composición desde proyectos"""
+    
+    @abstractmethod
+    def create_project_composition(self, project_path: str) -> Optional['ProjectCompositionInfo']:
+        """Crea información de composición desde estructura de proyecto"""
+        pass
+    
+    @abstractmethod
+    def auto_detect_assets(self, project_path: str) -> Dict[str, Optional[str]]:
+        """Detecta automáticamente assets disponibles en el proyecto"""
+        pass
+    
+    @abstractmethod
+    def validate_project_for_composition(self, project_path: str) -> List[str]:
+        """Valida que el proyecto tenga todo lo necesario para composición"""
+        pass
+
+class IAdaptiveVideoComposer(ABC):
+    """Interface para compositor adaptativo con múltiples motores"""
+    
+    @abstractmethod
+    def compose_with_best_available(self, request: 'VideoCompositionRequest') -> 'VideoCompositionResult':
+        """Compone usando el mejor motor disponible"""
+        pass
+    
+    @abstractmethod
+    def get_available_composers(self) -> List[str]:
+        """Retorna lista de compositores disponibles"""
+        pass
+    
+    @abstractmethod
+    def fallback_to_next_composer(self, failed_composer: str) -> Optional['IVideoComposer']:
+        """Cambia al siguiente compositor si uno falla"""
         pass
